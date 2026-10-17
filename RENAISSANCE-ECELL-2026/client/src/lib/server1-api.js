@@ -5,8 +5,6 @@ const API_BASE_URL = import.meta.env?.DEV
   ? (configuredApiBaseUrl || "/api/v1")
   : (configuredApiBaseUrl?.startsWith("/") ? configuredApiBaseUrl : "/api/v1");
 const API_ROOT_URL = API_BASE_URL.startsWith("/") ? "" : API_BASE_URL.replace(/\/api\/v1$/, "");
-const API_BASE_URL = (import.meta.env?.VITE_SERVER1_API_URL || "http://localhost:5001/api/v1").replace(/\/+$/, "");
-const API_ROOT_URL = API_BASE_URL.replace(/\/api\/v1$/, "");
 
 let adminToken = typeof window !== "undefined" ? localStorage.getItem("rn_admin_token") || null : null;
 
@@ -318,7 +316,29 @@ export const ticketApi = {
 };
 
 export const server1ApiBaseUrl = API_BASE_URL;
-export const getTeamPhotos = () => request("/team-photos", { cache: "no-store", signal: AbortSignal.timeout(60000) });
+const TEAM_PHOTOS_CACHE_TTL_MS = 30_000;
+let teamPhotosCache;
+let teamPhotosCacheAt = 0;
+let teamPhotosRequest;
+
+export function getTeamPhotos({ forceRefresh = false } = {}) {
+  if (!forceRefresh && teamPhotosCache && Date.now() - teamPhotosCacheAt < TEAM_PHOTOS_CACHE_TTL_MS) {
+    return Promise.resolve(teamPhotosCache);
+  }
+  if (teamPhotosRequest) return teamPhotosRequest;
+
+  const pendingRequest = request("/team-photos", { cache: "no-store", signal: AbortSignal.timeout(60000) })
+    .then((data) => {
+      teamPhotosCache = data;
+      teamPhotosCacheAt = Date.now();
+      return data;
+    })
+    .finally(() => {
+      if (teamPhotosRequest === pendingRequest) teamPhotosRequest = null;
+    });
+  teamPhotosRequest = pendingRequest;
+  return pendingRequest;
+}
 export function createTeamPhotoApi(local = false) {
   const prefix = local ? "/local-admin/team-photos" : "/admin/team-photos";
   const scope = local ? null : "admin";

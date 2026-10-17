@@ -23,7 +23,9 @@
 .admin-brand img { display: block; width: 100%; height: 76px; object-fit: contain; padding: 12px 18px; border-radius: 22px; background: #f7fcfc; margin-bottom: 18px; }
 .admin-brand .admin-kicker { font-size: 10px; }
 .admin-nav-label { margin: 42px 12px 20px; color: var(--admin-muted); }
-.admin-sidebar nav { display: grid; gap: 10px; }
+.admin-sidebar nav { display: grid; grid-auto-rows: max-content; gap: 10px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #8abac7 transparent; }
+.admin-sidebar nav::-webkit-scrollbar { width: 6px; }
+.admin-sidebar nav::-webkit-scrollbar-thumb { background: #8abac7; border-radius: 999px; }
 .admin-sidebar nav :is(button, a) { justify-content: flex-start; padding: 15px 12px; background: transparent; border: 1px solid transparent; border-radius: 11px; text-align: left; font-size: 14px; display: inline-flex; align-items: center; gap: 9px; color: #376579; font-weight: 600; text-decoration: none; cursor: pointer; transition: background .15s; }
 .admin-sidebar nav :is(button, a):hover { background: #f4fcfd; }
 .admin-sidebar nav :is(button, a) svg { flex-shrink: 0; color: #679caf; }

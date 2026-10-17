@@ -8,13 +8,16 @@ import ContactFooter from "../components/ContactFooter";
 const MAIN_SECTION_HEADING_CLASS =
   "group mx-auto mb-5 flex w-fit cursor-default flex-col items-center font-cinzel text-[1.65rem] font-bold leading-tight tracking-[0.04em] text-[#166E94] sm:mb-9 sm:text-5xl sm:tracking-[0.06em]";
 
-const FacultyCard = ({ member }) => (
+const FacultyCard = ({ member, priority = false }) => (
   <article className="teams-member-card teams-faculty-card group flex w-full max-w-[280px] shrink-0 flex-col rounded-xl border border-[#D8C4A8] bg-[#FDF3DF] p-3 text-center shadow-[0_10px_24px_rgba(84,64,43,0.2)] transition-all duration-300 sm:w-[232px] sm:rounded-2xl sm:p-4">
     <div className="aspect-square w-full overflow-hidden rounded-xl border border-[#D8C4A8] bg-[#EAD7BC]">
       <img
         src={teamPhotoUrl(member)}
         alt={member.name}
         className="h-full w-full object-cover"
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        decoding="async"
         onError={(e) => {
           const fallback = getAssetUrl("/placeholder-speaker.svg");
           if (e.currentTarget.getAttribute("src") !== fallback) e.currentTarget.src = fallback;
@@ -45,16 +48,17 @@ export default function Teams({ embedded = false }) {
   const [photosLoading, setPhotosLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    const refresh = () => {
+    const refresh = (forceRefresh = false) => {
       if (document.visibilityState !== "visible") return;
-      getTeamPhotos().then((data) => { if (active) { setMembers(data.members); setPhotoError(""); } })
+      getTeamPhotos({ forceRefresh }).then((data) => { if (active) { setMembers(data.members); setPhotoError(""); } })
         .catch(() => { if (active) setPhotoError("Team photos are temporarily unavailable. Please try again shortly."); })
         .finally(() => { if (active) setPhotosLoading(false); });
     };
     refresh();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("visibilitychange", refresh);
-    return () => { active = false; window.removeEventListener("focus", refresh); window.removeEventListener("visibilitychange", refresh); };
+    const refreshWhenActive = () => refresh(true);
+    window.addEventListener("focus", refreshWhenActive);
+    window.addEventListener("visibilitychange", refreshWhenActive);
+    return () => { active = false; window.removeEventListener("focus", refreshWhenActive); window.removeEventListener("visibilitychange", refreshWhenActive); };
   }, []);
   return (
     <div className={`${embedded ? "py-12 sm:py-16" : "teams-page-root min-h-[100svh] pt-[68px] sm:pt-24"} flex flex-col justify-between overflow-x-hidden bg-[radial-gradient(ellipse_at_15%_18%,rgba(249,231,196,0.60)_0%,transparent_34%),radial-gradient(ellipse_at_85%_76%,rgba(128,199,220,0.35)_0%,transparent_36%),linear-gradient(180deg,#E9DFC9_0%,#C6DEE0_20%,#D7E1D9_44%,#F2E8C8_72%,#FFD9A5_100%)] text-[#173F56]`}>
@@ -203,7 +207,7 @@ export default function Teams({ embedded = false }) {
                 <span className="mt-2 h-1 w-20 rounded-full bg-[#78C8ED] sm:mt-3 sm:w-24" />
               </h2>
               <div className="teams-faculty-cards flex flex-wrap items-stretch justify-center gap-4 px-1 pb-2 sm:gap-12">
-                {group.map((member) => <FacultyCard key={member.id} member={member} />)}
+                {group.map((member, index) => <FacultyCard key={member.id} member={member} priority={category === "faculty" && index < 4} />)}
               </div>
             </section>;
           })}

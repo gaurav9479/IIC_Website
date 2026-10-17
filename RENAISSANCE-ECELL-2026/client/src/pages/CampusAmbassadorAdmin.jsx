@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
-import { ArrowRight, BadgeCheck, CheckCheck, ClipboardList, Compass, Download, Eye, EyeOff, Images, LayoutGrid, LoaderCircle, LogOut, Menu, Plus, RefreshCw, Search, ShieldCheck, Ticket, Users, X } from "lucide-react";
+import { ArrowRight, BadgeCheck, CheckCheck, ClipboardList, Compass, Download, ExternalLink, Eye, EyeOff, Images, LayoutGrid, LoaderCircle, LogOut, Menu, Plus, RefreshCw, Search, ShieldCheck, Ticket, Users, X } from "lucide-react";
 import { adminApi } from "../lib/server1-api";
 import { downloadCsv } from "../lib/admin-csv";
 import { localAdminMode } from "../lib/local-admin";
@@ -148,6 +148,10 @@ export default function CampusAmbassadorAdmin() {
           <Ticket size={20} />
           <span>Ticket management</span>
         </Link>
+        <a href="/" target="_blank" rel="noreferrer">
+          <ExternalLink size={20} />
+          <span>Visit main website</span>
+        </a>
       </nav>
       <div className="admin-sidebar-footer"><ShieldCheck /><div><strong>{admin.name}</strong><small>Program administrator</small></div><button aria-label={localAdminMode ? "Exit local portal" : "Sign out"} disabled={busy} onClick={async () => { setBusy(true); try { await logout(); } catch (err) { report(err); setBusy(false); } }}><LogOut size={18} /></button></div>
       <p className="admin-kicker admin-credit">E-CELL · MNNIT ALLAHABAD</p>

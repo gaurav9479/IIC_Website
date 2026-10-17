@@ -9,7 +9,7 @@ const config = { CLOUDINARY_CLOUD_NAME: "fbf4uyoz", CLOUDINARY_API_KEY: "test-ke
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 const resource = (id, name = "Student") => ({ public_id: `renaissance/team/${id}`, secure_url: `https://res.cloudinary.com/fbf4uyoz/image/upload/v1/renaissance/team/${id}.jpg`, version: 1, context: { custom: { name, category: "fourth" } } });
 
-test("Cloudinary lists every page and fetches fresh on each request", async () => {
+test("Cloudinary paginates and reuses a short-lived team photo list", async () => {
   const urls = [];
   const service = createCloudinaryTeamPhotoService(config, async (url, options) => {
     urls.push(url);
@@ -19,8 +19,26 @@ test("Cloudinary lists every page and fetches fresh on each request", async () =
   });
   assert.equal((await service.list()).length, 2);
   assert.equal((await service.list()).length, 2);
-  assert.equal(urls.length, 4);
+  assert.equal(urls.length, 2);
   assert(urls[0].includes("context=true"));
+});
+
+test("creating a team photo invalidates the cached list", async () => {
+  let listRequests = 0;
+  const service = createCloudinaryTeamPhotoService(config, async (url, options) => {
+    if (url.includes("/resources/image/tags/")) {
+      listRequests += 1;
+      return json({ resources: [] });
+    }
+    const params = Object.fromEntries(options.body.entries());
+    return json(resource(params.public_id.split("/").at(-1)));
+  });
+  await service.list();
+  await service.list();
+  assert.equal(listRequests, 1);
+  await service.create({ name: "New member", category: "fourth", image_url: "https://example.com/photo.jpg" });
+  await service.list();
+  assert.equal(listRequests, 2);
 });
 
 test("cropped uploads are signed on the server and return Cloudinary URLs", async () => {
