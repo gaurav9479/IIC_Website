@@ -9,6 +9,17 @@ const escapeContext = (value) => String(value || "").replaceAll("\\", "\\\\").re
 
 export function createCloudinaryTeamPhotoService(config, fetcher = (...args) => fetch(...args)) {
   const base = `https://api.cloudinary.com/v1_1/${config.CLOUDINARY_CLOUD_NAME}`;
+  const listCacheTtlMs = 30_000;
+  let cachedMembers;
+  let cachedAt = 0;
+  let listPromise;
+  let cacheGeneration = 0;
+  function invalidateListCache() {
+    cacheGeneration += 1;
+    cachedMembers = undefined;
+    cachedAt = 0;
+    listPromise = undefined;
+  }
   function configured() {
     if (!config.CLOUDINARY_API_KEY || !config.CLOUDINARY_API_SECRET) {
       throw new ApiError(503, "Cloudinary is not configured. Add CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET to server1/.env and restart the API.", "CLOUDINARY_NOT_CONFIGURED");
@@ -58,37 +69,65 @@ export function createCloudinaryTeamPhotoService(config, fetcher = (...args) => 
     const result = await signed("upload", { public_id: publicId(id), tags: TAG, context: context(body), overwrite, invalidate: true }, body.image_url);
     return { ...member(result), ...Object.fromEntries(fields.map((key) => [key, body[key] || ""])) };
   }
+  async function loadMembers() {
+    const members = [];
+    let cursor;
+    do {
+      const query = new URLSearchParams({ context: "true", max_results: "500" });
+      if (cursor) query.set("next_cursor", cursor);
+      const result = await adminGet(`resources/image/tags/${TAG}?${query}`);
+      for (const resource of result.resources || []) {
+        if (resource.public_id.startsWith(PREFIX) && resource.context?.custom?.name) members.push(member(resource));
+      }
+      cursor = result.next_cursor;
+    } while (cursor);
+    return members.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  }
   return {
     async list() {
-      const members = [];
-      let cursor;
-      do {
-        const query = new URLSearchParams({ context: "true", max_results: "500" });
-        if (cursor) query.set("next_cursor", cursor);
-        const result = await adminGet(`resources/image/tags/${TAG}?${query}`);
-        for (const resource of result.resources || []) {
-          if (resource.public_id.startsWith(PREFIX) && resource.context?.custom?.name) members.push(member(resource));
+      if (cachedMembers && Date.now() - cachedAt < listCacheTtlMs) return cachedMembers;
+      if (listPromise) return listPromise;
+      const generation = cacheGeneration;
+      const pending = loadMembers().then((members) => {
+        if (generation === cacheGeneration) {
+          cachedMembers = members;
+          cachedAt = Date.now();
         }
-        cursor = result.next_cursor;
-      } while (cursor);
-      return members.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+        return members;
+      }).finally(() => {
+        if (listPromise === pending) listPromise = undefined;
+      });
+      listPromise = pending;
+      return pending;
     },
-    async create(body) { return upload(randomUUID(), body, false); },
+    async create(body) {
+      const created = await upload(randomUUID(), body, false);
+      invalidateListCache();
+      return created;
+    },
     async update(id, body) {
       const previous = member(await getResource(id));
-      if (body.image_url && body.image_url !== previous.image_url) return upload(id, body, true);
-      await signed("explicit", { public_id: publicId(id), type: "upload", context: context(body) });
-      return { ...previous, ...Object.fromEntries(fields.map((key) => [key, body[key] || ""])) };
+      let updated;
+      if (body.image_url && body.image_url !== previous.image_url) updated = await upload(id, body, true);
+      else {
+        await signed("explicit", { public_id: publicId(id), type: "upload", context: context(body) });
+        updated = { ...previous, ...Object.fromEntries(fields.map((key) => [key, body[key] || ""])) };
+      }
+      invalidateListCache();
+      return updated;
     },
     async import(id, body) {
       try { return member(await getResource(id)); }
       catch (error) { if (error.statusCode !== 404) throw error; }
       // Stable IDs and overwrite=false make interrupted migrations safe to retry.
-      return upload(id, body, false);
+      const imported = await upload(id, body, false);
+      invalidateListCache();
+      return imported;
     },
     async remove(id) {
       const result = await signed("destroy", { public_id: publicId(id), invalidate: true });
       if (!["ok", "not found"].includes(result.result)) throw new ApiError(502, "Cloudinary did not confirm removal. Please retry.", "CLOUDINARY_DELETE_FAILED");
+      invalidateListCache();
     },
   };
 }

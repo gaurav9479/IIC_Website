@@ -2,6 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { getTeamPhotos } from './lib/server1-api.js'
+
+// Warm the public team-photo request before the lazy Teams route is downloaded.
+if (!/^\/(?:admin|volunteer)(?:\/|$)/.test(window.location.pathname)) {
+  getTeamPhotos().catch(() => { })
+}
 
 const staleChunkReloadKey = 'renaissance-stale-chunk-reload-at';
 window.addEventListener('vite:preloadError', (event) => {
